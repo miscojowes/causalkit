@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "description": "Non-linear d=6 chain benchmark (sin/cos/tanh SEM)",
+    "methods": ["Single NOTEARS (linear)", "Bootstrap(5)-Linear"],
+    "n_seeds": 2,
+    "seeds": [42, 43]
+  },
+  "by_seed": [
+    {
+      "seed": 42,
+      "d": 6,
+      "true_edges": 5,
+      "Single NOTEARS": {"shd": 3.0, "precision": 0.0, "recall": 0.0, "time_s": 4},
+      "Bootstrap(5)-Linear": {"shd": 12.5, "precision": 0.17, "recall": 1.0, "time_s": 19}
+    },
+    {
+      "seed": 43,
+      "d": 6,
+      "true_edges": 5,
+      "Single NOTEARS": {"shd": 3.5, "precision": 0.33, "recall": 0.40, "time_s": 4},
+      "Bootstrap(5)-Linear": {"shd": 12.5, "precision": 0.17, "recall": 1.0, "time_s": 14}
+    }
+  ],
+  "summary": {
+    "Single NOTEARS": {"shd_mean": 3.25, "shd_std": 0.35, "precision_mean": 0.165, "precision_std": 0.235, "recall_mean": 0.20, "recall_std": 0.28},
+    "Bootstrap(5)-Linear": {"shd_mean": 12.5, "shd_std": 0.0, "precision_mean": 0.17, "precision_std": 0.0, "recall_mean": 1.0, "recall_std": 0.0}
+  }
+}
