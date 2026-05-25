@@ -1,0 +1,28 @@
+================================================================================
+  Causal Discovery Benchmark (train/val/test)
+================================================================================
+
+────────────────────────────────────────────────────────────
+  linear_d5: d=5, n=1500
+────────────────────────────────────────────────────────────
+
+  seed=42: 2 true edges
+    Bootstrap(20)   SHD=1.5  P=0.50  R=1.00  AUCPR=0.38  t=66.1 s
+    Bootstrap(50)   SHD=1.0  P=0.67  R=1.00  AUCPR=0.42  t=154.5s
+  0%|          | 0/5 [00:00<?, ?it/s]  0%|          | 0/5 [00:00<?, ?it/s]Depth=0, working on node 0:  20%|██        | 1/5 [00:00<00:00, 5065.58it/s]Depth=0, working on node 1:  40%|████      | 2/5 [00:00<00:00, 595.87it/s] Depth=0, working on node 2:  60%|██████    | 3/5 [00:00<00:00, 571.85it/s]Depth=0, working on node 3:  80%|████████  | 4/5 [00:00<00:00, 599.10it/s]Depth=0, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 649.76it/s]Depth=0, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 604.11it/s]Depth=0, working on node 4:   0%|          | 0/5 [00:00<?, ?it/s]         Depth=1, working on node 0:  20%|██        | 1/5 [00:00<00:00, 5203.85it/s]Depth=1, working on node 1:  40%|████      | 2/5 [00:00<00:00, 4888.47it/s]Depth=1, working on node 2:  60%|██████    | 3/5 [00:00<00:00, 1776.75it/s]Depth=1, working on node 3:  80%|████████  | 4/5 [00:00<00:00, 1575.03it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 1693.30it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 1573.97it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 1400.90it/s]
+    PC              SHD=1.0  P=nan   R=0.00  AUCPR=0.55  t=0.0  s
+    GES             ERROR: only 0-dimensional arrays can be converted to Python scalars
+
+  seed=123: 2 true edges
+    Bootstrap(20)   SHD=1.5  P=0.50  R=1.00  AUCPR=0.29  t=60.4 s
+    Bootstrap(50)   SHD=1.0  P=0.50  R=1.00  AUCPR=0.38  t=153.6s
+  0%|          | 0/5 [00:00<?, ?it/s]  0%|          | 0/5 [00:00<?, ?it/s]Depth=0, working on node 0:  20%|██        | 1/5 [00:00<00:00, 8405.42it/s]Depth=0, working on node 1:  40%|████      | 2/5 [00:00<00:00, 1040.38it/s]Depth=0, working on node 2:  60%|██████    | 3/5 [00:00<00:00, 939.79it/s] Depth=0, working on node 3:  80%|████████  | 4/5 [00:00<00:00, 954.99it/s]Depth=0, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 1024.80it/s]Depth=0, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 954.51it/s] Depth=0, working on node 4:   0%|          | 0/5 [00:00<?, ?it/s]         Depth=1, working on node 0:  20%|██        | 1/5 [00:00<00:00, 7810.62it/s]Depth=1, working on node 1:  40%|████      | 2/5 [00:00<00:00, 1973.79it/s]Depth=1, working on node 2:  60%|██████    | 3/5 [00:00<00:00, 2546.63it/s]Depth=1, working on node 3:  80%|████████  | 4/5 [00:00<00:00, 2264.13it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 2438.27it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 2281.25it/s]Depth=1, working on node 4: 100%|██████████| 5/5 [00:00<00:00, 2036.27it/s]
+    PC              SHD=1.0  P=nan   R=0.00  AUCPR=0.55  t=0.0  s
+    GES             ERROR: only 0-dimensional arrays can be converted to Python scalars
+
+────────────────────────────────────────────────────────────
+  linear_d10: d=10, n=3000
+────────────────────────────────────────────────────────────
+
+  seed=42: 11 true edges
+    Bootstrap(20)   SHD=5.5  P=0.56  R=0.45  AUCPR=0.37  t=154.8s
