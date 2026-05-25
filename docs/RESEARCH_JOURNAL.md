@@ -97,9 +97,59 @@ Track of every design decision, its research basis, empirical validation, and wh
 4. **Non-linear**: Add neural version as optional (default to linear for speed/robustness)
 5. **LLM priors**: Same prior injection, simpler loss.
 
-## Next Steps After Feedback
+## 2026-05-25 (Late Night Session): Core Algorithm Improvements
 
-1. Implement bootstrap-based NOTEARS with fixed calibration
-2. Fix prior injection with L2 loss
-3. Benchmark: CausalBayes (bootstrap) vs PC vs GES on non-linear data
-4. Show calibrated uncertainty (ECE < 0.1 goal)
+### Decision: Fast SciPy L-BFGS-B NOTEARS as Default
+
+**Basis:** Official NOTEARS implementation uses SciPy L-BFGS-B with doubled variables for L1. This is 10-100x faster than PyTorch Adam on arm64 CPU (0.7s vs 17s per run for d=5). Makes bootstrapping practical even with 50-100 samples.
+
+**Implementation:** Refactored `BootstrapDAG` to use `notears_lbfgs()` from `notears_fast.py` instead of the slow PyTorch-based `notears_linear()`. Each bootstrap run now completes in ~0.7-1.5s.
+
+### Decision: L2 Prior Penalty (replacing KL)
+
+**Hypothesis:** KL divergence between prior and sigmoid-transformed weights is too weak compared to reconstruction loss. L2 penalty on weight deviation from prior target should give stronger prior signal.
+
+**Implementation:**
+- Both `notears_lbfgs` and `notears_adam` accept `prior_matrix` (d,d) and `lambda_prior` (float)
+- Loss = recon + L1 + L2_prior + acyclicity, where L2_prior = lambda_prior * sum(prior * W²)
+- For edges with prior=0 (unlikely), this penalizes |W|² directly
+- For edges with prior=0.9 (likely), the penalty is weaker
+
+**Status:** Implemented. Needs empirical validation on known priors.
+
+### Decision: Platt Scaling for Probability Calibration
+
+**Hypothesis:** Bootstrap proportions are systematically overconfident (edges at 0 or 1). Platt scaling (logistic regression on logit-transformed proportions) can map raw proportions to better-calibrated probabilities.
+
+**Implementation:**
+- `calibrate_bootstrap_proportions(P_raw, W_binary_val)` fits a logistic regression on val data
+- Uses logit(P) = ln(P/(1-P)) as input feature
+- Returns calibrated probabilities P_cal along with Platt parameters (a,b)
+
+**Preliminary test:** On random data, ECE went from ~0.30 to ~0.03 after Platt calibration.
+
+### Decision: gCastle Baseline Integration
+
+**Status:** gCastle v1.0.4 installed (works on arm64). Available baselines:
+- PC, GES, Notears (linear), NotearsNonlinear, GraNDAG, DirectLiNGAM
+- Will use these for proper comparisons in benchmarks
+
+### Running Benchmarks (Autonomous Session)
+
+Sub-agent executing:
+1. `benchmark_comprehensive.py` — 10-seed linear d=5 benchmark (Bootstrap, Single NOTEARS, gCastle baselines)
+2. `experiment_calibration.py` — Platt scaling validation
+3. `experiment_l2_priors.py` — L2 prior ablation
+4. `benchmark_nonlinear.py` — Non-linear data benchmark
+
+Results pending.
+
+---
+
+## Next Steps
+
+1. ⏳ Wait for sub-agent benchmark results
+2. Run gCastle comparisons
+3. Non-linear Neural NOTEARS benchmark
+4. LLM prior end-to-end demo
+5. Write final conclusions with paper-ready findings
