@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "description": "Calibration experiment: Platt vs Isotonic",
+    "n_seeds": 5,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "d": 5
+  },
+  "by_seed": [
+    {
+      "seed": 42,
+      "ece_raw": 0.12999999999999998,
+      "ece_platt": 0.11499999999999999,
+      "ece_isotonic": 0.05,
+      "n_valid_bootstraps": 30,
+      "time_s": 343.89924907684326
+    },
+    {
+      "seed": 43,
+      "ece_raw": 0.4088235294117647,
+      "ece_platt": 0.32,
+      "ece_isotonic": 0.019999999999999987,
+      "n_valid_bootstraps": 30,
+      "time_s": 200.6665096282959
+    },
+    {
+      "seed": 44,
+      "ece_raw": 0.1,
+      "ece_platt": 0.07500000000000001,
+      "ece_isotonic": 0.05000000000000001,
+      "n_valid_bootstraps": 30,
+      "time_s": 66.65322256088257
+    },
+    {
+      "seed": 45,
+      "ece_raw": 0.08499999999999999,
+      "ece_platt": 0.05500000000000001,
+      "ece_isotonic": 0.05000000000000001,
+      "n_valid_bootstraps": 30,
+      "time_s": 20.700798749923706
+    },
+    {
+      "seed": 46,
+      "ece_raw": 0.16249999999999998,
+      "ece_platt": 0.16249999999999998,
+      "ece_isotonic": 0.04999999999999999,
+      "n_valid_bootstraps": 30,
+      "time_s": 29.673625707626343
+    }
+  ],
+  "summary": {
+    "ece_raw_mean": 0.17726470588235294,
+    "ece_raw_std": 0.11878892914990569,
+    "ece_platt_mean": 0.14550000000000002,
+    "ece_platt_std": 0.09468896451012652,
+    "ece_iso_mean": 0.044,
+    "ece_iso_std": 0.012000000000000005
+  }
+}

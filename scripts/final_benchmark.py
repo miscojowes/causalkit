@@ -191,8 +191,8 @@ def run_gcastle_pc(X):
 
 def run_llm_prior_demo():
     """End-to-end demo of LLM prior integration with uncertainty and suggestions."""
-    from causbayse import BootstrapDAG
     from causbayes.llm_prior.prior_builder import build_prior_from_llm_response
+    from causbayes.structure_learning.notears_fast import notears_lbfgs, bootstrap_notears
 
     print("\n" + "=" * 60)
     print("  LLM PRIOR DEMO: End-to-End")
@@ -224,12 +224,6 @@ def run_llm_prior_demo():
     print(f"\n  Ground truth edges: {int(np.sum(W_true > 0))}")
     print(f"  LLM prior matrix:\n{np.array_str(prior_matrix, precision=2, suppress_small=True)}")
 
-    # Run with prior (L2 penalty against prior)
-    from causbayse import BootstrapDAG  # Hmm, import again... let me check the API
-
-    # Actually let me just use the notears_fast directly with L2 prior
-    from causbayes.structure_learning.notears_fast import notears_lbfgs, bootstrap_notears
-
     # 1. Without prior
     print("\n  --- Without LLM Prior ---")
     P_no_prior, S_no, _, _ = bootstrap_notears(X_tr_s, n_bootstraps=30, max_iter=10,
@@ -239,12 +233,11 @@ def run_llm_prior_demo():
     # 2. With LLM prior (as L2 penalty)
     print("\n  --- With LLM Prior ---")
     # Run bootstrap where each run uses L2 penalty toward prior
-    prior_lambda = 0.1  # strength of prior
+    lambda_prior = 0.1  # strength of prior
 
     P_prior = np.zeros_like(W_true, dtype=float)
     W_list = []
     n_boot = 30
-    d = X_tr_s.shape[1]
 
     for b in range(n_boot):
         rng = np.random.RandomState(42 + b)
@@ -254,7 +247,7 @@ def run_llm_prior_demo():
         # Use L2 prior
         W_est = notears_lbfgs(
             X_boot, lambda_1=0.01, max_iter=10, w_threshold=0.05,
-            prior_matrix=prior_matrix, prior_lambda=prior_lambda,
+            prior_matrix=prior_matrix, lambda_prior=lambda_prior,
         )
         if not np.isnan(W_est).any():
             W_list.append(W_est)
