@@ -134,22 +134,115 @@ Track of every design decision, its research basis, empirical validation, and wh
 - PC, GES, Notears (linear), NotearsNonlinear, GraNDAG, DirectLiNGAM
 - Will use these for proper comparisons in benchmarks
 
-### Running Benchmarks (Autonomous Session)
+### Running Benchmarks (Autonomous Session — 2026-05-25, 22:55-23:15 UTC)
 
-Sub-agent executing:
-1. `benchmark_comprehensive.py` — 10-seed linear d=5 benchmark (Bootstrap, Single NOTEARS, gCastle baselines)
-2. `experiment_calibration.py` — Platt scaling validation
-3. `experiment_l2_priors.py` — L2 prior ablation
-4. `benchmark_nonlinear.py` — Non-linear data benchmark
+### Hardware Note
+Arm64 CPU (Radxa Dragon Q6A, Qualcomm QCM6490).
+- `notears_lbfgs` (SciPy L-BFGS-B): ~8-19s per call (slow due to unoptimized BLAS on arm64)
+- `notears_fast` (PyTorch Adam with power-series expm): ~3-5s per call
+- Cached `.pyc` from earlier version gave artificially fast timings; results rerun with actual code
 
-Results pending.
+### Task 1: Comprehensive Multi-Seed Benchmark (d=5 linear)
+
+**Script:** `scripts/benchmark_comprehensive.py`
+
+**Configuration:**
+- d=5, n=1000, Erdos-Renyi p=0.2, linear Gaussian SEM, noise_scale=0.1
+- 5 seeds: 42, 43, 44, 45, 46
+- 60/20/20 train/val/test split
+- Methods: Bootstrap(30), Single NOTEARS, Random
+- Threshold calibrated on validation data
+
+**Results (mean ± std, 5 seeds):**
+
+| Method | SHD | Precision | Recall | F1 | AUC-PR | ECE | Brier | Time (s) |
+|--------|-----|-----------|--------|-----|--------|-----|-------|----------|
+| **Bootstrap(30)** | 1.80±1.63 | 0.51±0.42 | 0.47±0.34 | 0.46±0.35 | 0.60±0.33 | 0.1455±0.0947 | 0.176±0.155 | 6.0±1.9 |
+| **Single NOTEARS** | 2.20±1.81 | 0.44±0.31 | 0.49±0.28 | 0.46±0.30 | 0.51±0.26 | 0.0944±0.0969 | 0.220±0.181 | 0.2±0.1 |
+| **Random** | 4.70±1.12 | 0.16±0.05 | 0.59±0.27 | 0.25±0.09 | 0.21±0.15 | 0.4130±0.0698 | 0.334±0.068 | 0.0±0.0 |
+
+**Hypothesis tested:** Bootstrap uncertainty should improve calibration over single NOTEARS.
+
+**Conclusions:**
+- ✅ Bootstrap(30) outperforms Single NOTEARS on SHD (1.80 vs 2.20) and AUC-PR (0.60 vs 0.51)
+- ❌ Bootstrap ECE (0.1455) exceeds the target 0.1 and is worse than Single NOTEARS (0.0944)
+- High variability across seeds (large std) indicates performance depends heavily on DAG structure
+- Random baseline confirms methods learn meaningful structure (SHD 1.80 vs 4.70)
+- **Key insight:** Bootstrap improves structure recovery but degrades calibration compared to binary outputs (which are by definition already at extreme prob values)
+
+### Task 2: Calibration Experiment
+
+**Configuration:**
+- d=5 linear, seed=42, Bootstrap(10) using `notears_fast` (PyTorch Adam)
+- Methods: Raw bootstrap proportions, Platt scaling, Isotonic Regression
+
+**Results:** All methods showed ECE≈0.0000 — measurement artifact due to insufficient probability granularity (10 bootstraps produce only 0.1 increments).
+
+**Conclusion:**
+- 10 bootstraps with low noise produce nearly identical weight matrices → all probabilities at 0 or 1
+- Need 30+ bootstraps with subsampling or regularization perturbation for diverse matrices
+- Codebase has built-in `calibrate_bootstrap_proportions()` in `notears_fast.py` — approach is correct but needs diverse samples
+
+### Task 3: Non-linear Benchmark
+
+**Configuration:**
+- d=6 chain DAG, sin/cos/tanh additive noise, n=800
+- Methods: Single Linear NOTEARS, Bootstrap(5) Linear NOTEARS (2 seeds)
+
+**Results:**
+| Seed | Method | SHD | Precision | Recall |
+|------|--------|-----|-----------|--------|
+| 42 | Single NOTEARS | 3.0 | 0.00 | 0.00 |
+| 42 | Bootstrap(5) | 12.5 | 0.17 | 1.00 |
+| 43 | Single NOTEARS | 3.5 | 0.33 | 0.40 |
+| 43 | Bootstrap(5) | 12.5 | 0.17 | 1.00 |
+
+**Hypothesis:** Linear NOTEARS should fail on non-linear data.
+
+**Conclusions:**
+- ✅ Single linear NOTEARS performs poorly — confirms linear model fails for non-linear SEMs
+- ❌ Bootstrap(5) performs WORSE (SHD=12.5) — bootstrapping amplifies instability
+- Future: Need Neural NOTEARS (per-variable MLPs) for non-linear data
+
+### Task 4: L2 Prior Experiment
+
+**Configuration:**
+- d=5 linear, single NOTEARS, 2 seeds (2 and 5 true edges)
+- L2 prior: λ * sum(prior[i,j] * (|W| - mu)²), mu=0.3 for high-prior edges
+- Conditions: No prior, Correct prior (P=0.9 on true edges), Misleading prior (P=0.9 on non-edges)
+
+**Results (SHD):**
+| Condition | λ=0.05 | λ=0.10 | λ=0.50 |
+|-----------|--------|--------|--------|
+| No Prior | SHD=1.0/4.0 | SHD=1.0/4.0 | SHD=1.0/4.0 |
+| Correct Prior | SHD=1.0/4.5 | SHD=1.0/4.5 | SHD=1.5/4.5 |
+| Misleading | **SHD=1.0/5.0** | **SHD=2.0/5.5** | **SHD=5.0/5.0** |
+
+**Hypothesis:** L2 priors with correct domain knowledge should improve accuracy.
+
+**Conclusions:**
+- ❌ Correct priors do NOT improve SHD at any λ tested
+- ✅ Misleading priors consistently hurt accuracy (as expected)
+- Data signal (n=1000, noise=0.1) dominates the prior; prior needs stronger influence
+- Future: Use larger λ or bootstrapped ensemble for L2 prior injection
+
+### Summary
+
+| Finding | Status |
+|---------|--------|
+| Bootstrap(30) outperforms Single NOTEARS (SHD 1.80 vs 2.20) | ✅ |
+| ECE target < 0.1 not met (Bootstrap: 0.1455) | ❌ |
+| 10 bootstraps insufficient for calibration granularity | ❌ |
+| Linear NOTEARS fails on non-linear data (as expected) | ✅ |
+| Correct L2 priors don't improve accuracy at low λ | ❌ |
+| Misleading L2 priors consistently hurt accuracy | ✅ |
 
 ---
 
 ## Next Steps
 
-1. ⏳ Wait for sub-agent benchmark results
-2. Run gCastle comparisons
-3. Non-linear Neural NOTEARS benchmark
-4. LLM prior end-to-end demo
-5. Write final conclusions with paper-ready findings
+1. Increase bootstrap count to 50+ with bootstrapping variance for diverse weight matrices
+2. Implement proper Neural NOTEARS (per-variable MLPs) for non-linear data
+3. Test L2 priors with larger λ and bootstrapped ensemble context
+4. LLM prior integration: use LLM output as prior matrix
+5. Paper-ready benchmark with PC, GES, and gCastle baselines
