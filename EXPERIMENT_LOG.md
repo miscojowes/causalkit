@@ -311,7 +311,7 @@ over-committing to wrong edges. Lower λ (0.1) is safer but reduces prior benefi
 ### Prerequisites
 
 ```bash
-git clone <repo> && cd causbayes
+git clone https://github.com/miscojowes/causalkit && cd causalkit
 python -m venv venv && source venv/bin/activate
 pip install numpy pandas scipy scikit-learn networkx matplotlib
 pip install gcastle    # for GES baseline
