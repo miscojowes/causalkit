@@ -257,35 +257,35 @@ class NeuralBayesianDAG(BaseStructureLearner):
     def _compute_prior_loss(self, W: torch.Tensor) -> torch.Tensor:
         """Compute prior regularization loss.
 
-        If a prior matrix is provided, penalizes edges that disagree
-        with the prior. Uses a soft penalty based on prior_strength.
+        If a prior matrix is provided, penalizes edges that DISAGREE
+        with the prior. Uses (1 - prior) * W^2 so that:
+        - prior[i,j] = 1 (edge expected) → no penalty for large |W|
+        - prior[i,j] = 0 (edge unexpected) → heavy penalty for |W| > 0
+
+        This creates a differentiable bias toward domain-consistent DAGs.
         """
         if self.prior_matrix is None:
             return torch.tensor(0.0, device=self.device)
 
-        d = W.shape[0]
         prior_t = torch.from_numpy(self.prior_matrix).float().to(self.device)
+        
+        # Penalize disagreement: (1 - prior) * W^2
+        # Don't penalize diagonal
+        eye = torch.eye(W.shape[0], device=self.device)
+        penalty = torch.sum((1.0 - prior_t) * W**2 * (1.0 - eye))
 
-        # Convert weight matrix to probability-like via sigmoid
-        edge_probs = torch.sigmoid(W.abs())
-
-        # KL-divergence-like penalty between edge distribution and prior
-        # Penalize when sigmoid(W) disagrees with prior matrix
-        prior_loss = torch.sum(
-            prior_t * torch.log(prior_t / (edge_probs + 1e-8) + 1e-8)
-            + (1 - prior_t) * torch.log((1 - prior_t) / (1 - edge_probs + 1e-8) + 1e-8)
-        )
-
-        return self.lambda_prior * self.prior_strength * prior_loss
+        return self.lambda_prior * self.prior_strength * penalty
 
     def _compute_mc_dropout_uncertainty(self, X: torch.Tensor):
         """Compute edge posterior probabilities using MC Dropout.
 
-        Uses a distribution-aware approach:
-        1. Mean weight per edge from MC samples
-        2. Calibrated probabilities via soft rank-normalization:
-           edges are ranked by mean weight and mapped to [0,1] using
-           the overall distribution of weights across all edges.
+        Direct approach: runs forward passes with dropout enabled,
+        collects weight matrix samples, and computes:
+        - Edge probability = proportion of samples where |W[i,j]| > threshold
+        - Edge std = std dev of |W[i,j]| across samples
+
+        The threshold is set at a low percentile of the overall
+        weight distribution, separating signal from dropout noise.
         """
         d = X.shape[1]
 
@@ -298,39 +298,20 @@ class NeuralBayesianDAG(BaseStructureLearner):
             self.model_.eval()
             edge_samples.append(W_sample.cpu().detach().numpy())
 
-        edge_samples = np.array(edge_samples)
-        mean_W = np.mean(edge_samples, axis=0)
-        std_W = np.std(edge_samples, axis=0)
+        edge_samples = np.array(edge_samples)  # (mc_samples, d, d)
+        W_abs = np.abs(edge_samples)
 
-        eps = 1e-8
+        # Edge probability: proportion of MC samples where edge is "present"
+        # Use the 10th percentile of ALL weights as threshold.
+        # This separates signal from dropout noise robustly.
+        all_weights = W_abs.ravel()
+        threshold = np.percentile(all_weights, 10) if len(all_weights) > 0 else 0.01
 
-        # Rank-based calibration using distribution of all mean weights.
-        # Edge probability = how strong is this edge relative to the noise floor.
-        flat_weights = mean_W.flatten()
-        non_zero = flat_weights[flat_weights > eps]
-
-        if len(non_zero) > 1:
-            median = np.median(non_zero)
-            q75, q25 = np.percentile(non_zero, [75, 25])
-            iqr = max(q75 - q25, np.std(non_zero) * 0.5)
-
-            # Logistic mapping centered at median, scaled by IQR
-            # median weight -> P=0.5, median+iqr -> P~0.88, median-iqr -> P~0.12
-            scale = iqr / 2.0
-            if scale > eps:
-                logits = (mean_W - median) / scale
-                self._edge_probs_ = 1.0 / (1.0 + np.exp(-logits))
-            else:
-                self._edge_probs_ = (mean_W > 0).astype(float)
-        else:
-            self._edge_probs_ = np.zeros((d, d))
+        self._edge_probs_ = np.mean(W_abs > max(threshold, 1e-4), axis=0)
+        self._edge_stds_ = np.std(W_abs, axis=0)
 
         np.fill_diagonal(self._edge_probs_, 0.0)
-
-        # Normalized std: raw std is on same scale as normalized weights [0,1]
-        # Add a small prior to avoid zero-std edges and reflect limited MC samples
-        mc_prior = 0.01 / np.sqrt(max(self.mc_samples, 1))
-        self._edge_stds_ = np.clip(std_W + mc_prior, 0.0, 1.0)
+        np.fill_diagonal(self._edge_stds_, 0.0)
 
     def _compute_variational_uncertainty(self, X: torch.Tensor):
         """Compute edge posterior using variational inference.
@@ -371,6 +352,11 @@ class NeuralBayesianDAG(BaseStructureLearner):
     def sample_graphs(self, n_samples: int = 100) -> list:
         """Sample DAGs from the posterior over graphs.
 
+        Uses Bernoulli sampling from edge probabilities with
+        cycle rejection: samples that form cycles are rejected
+        and resampled. This yields proper posterior samples
+        (up to the approximation quality of the edge probabilities).
+
         Args:
             n_samples: Number of DAGs to sample
 
@@ -378,17 +364,35 @@ class NeuralBayesianDAG(BaseStructureLearner):
             List of binary adjacency matrices
         """
         graphs = []
-        for _ in range(n_samples):
+        d = self._edge_probs_.shape[0]
+        attempts = 0
+        max_attempts = n_samples * 50  # Safety limit
+
+        while len(graphs) < n_samples and attempts < max_attempts:
+            attempts += 1
             W_sample = np.random.binomial(1, self._edge_probs_)
-            # Ensure DAG by zeroing lower triangle of random permutation
-            # (simplistic but fast)
-            perm = np.random.permutation(W_sample.shape[0])
-            W_sorted = W_sample[perm][:, perm]
-            W_dag = np.triu(W_sorted, k=1)
-            # Map back to original ordering
-            inv_perm = np.argsort(perm)
-            W_dag = W_dag[inv_perm][:, inv_perm]
-            graphs.append(W_dag)
+            np.fill_diagonal(W_sample, 0.0)
+
+            # Check if DAG using networkx (robust)
+            try:
+                import networkx as nx
+                G = nx.DiGraph(W_sample)
+                if nx.is_directed_acyclic_graph(G):
+                    graphs.append(W_sample)
+            except ImportError:
+                # Fallback: topological ordering check
+                # A graph is a DAG iff its adjacency matrix can be permuted
+                # to strictly upper triangular
+                perm = np.argsort(np.random.rand(d))  # random ordering
+                W_perm = W_sample[perm][:, perm]
+                if np.all(np.tril(W_perm, k=-1) == 0):
+                    graphs.append(W_sample)
+
+        if len(graphs) < n_samples:
+            import warnings
+            warnings.warn(f"Only sampled {len(graphs)}/{n_samples} DAGs "
+                          f"({attempts} attempts) — high cycle probability")
+
         return graphs
 
     def plot(

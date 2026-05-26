@@ -1,0 +1,259 @@
+{
+  "metadata": {
+    "model": "deepseek-v4-flash",
+    "api_base": "https://opencode.ai/zen/go/v1",
+    "thinking": "disabled",
+    "n_bootstraps": 30,
+    "lambdas_tested": [
+      0.01,
+      0.05,
+      0.1,
+      0.2
+    ],
+    "best_lambda": 0.0,
+    "n": 1000,
+    "d": 6,
+    "true_edges": 6
+  },
+  "prior_quality": {
+    "avg_prior_true_edges": 0.9,
+    "avg_prior_false_edges": 0.11,
+    "true_edges_with_high_prior": 6,
+    "true_edges_with_low_prior": 0,
+    "false_edges_with_high_prior": 2
+  },
+  "llm_responses": [
+    {
+      "source": "X0",
+      "target": "X1",
+      "confidence": 0.9
+    },
+    {
+      "source": "X0",
+      "target": "X2",
+      "confidence": 0.9
+    },
+    {
+      "source": "X0",
+      "target": "X3",
+      "confidence": 0.7
+    },
+    {
+      "source": "X0",
+      "target": "X4",
+      "confidence": 0.3
+    },
+    {
+      "source": "X0",
+      "target": "X5",
+      "confidence": 0.1
+    },
+    {
+      "source": "X1",
+      "target": "X0",
+      "confidence": 0.0
+    },
+    {
+      "source": "X1",
+      "target": "X2",
+      "confidence": 0.1
+    },
+    {
+      "source": "X1",
+      "target": "X3",
+      "confidence": 0.9
+    },
+    {
+      "source": "X1",
+      "target": "X4",
+      "confidence": 0.5
+    },
+    {
+      "source": "X1",
+      "target": "X5",
+      "confidence": 0.2
+    },
+    {
+      "source": "X2",
+      "target": "X0",
+      "confidence": 0.0
+    },
+    {
+      "source": "X2",
+      "target": "X1",
+      "confidence": 0.1
+    },
+    {
+      "source": "X2",
+      "target": "X3",
+      "confidence": 0.9
+    },
+    {
+      "source": "X2",
+      "target": "X4",
+      "confidence": 0.5
+    },
+    {
+      "source": "X2",
+      "target": "X5",
+      "confidence": 0.2
+    },
+    {
+      "source": "X3",
+      "target": "X0",
+      "confidence": 0.0
+    },
+    {
+      "source": "X3",
+      "target": "X1",
+      "confidence": 0.0
+    },
+    {
+      "source": "X3",
+      "target": "X2",
+      "confidence": 0.0
+    },
+    {
+      "source": "X3",
+      "target": "X4",
+      "confidence": 0.9
+    },
+    {
+      "source": "X3",
+      "target": "X5",
+      "confidence": 0.6
+    },
+    {
+      "source": "X4",
+      "target": "X0",
+      "confidence": 0.0
+    },
+    {
+      "source": "X4",
+      "target": "X1",
+      "confidence": 0.0
+    },
+    {
+      "source": "X4",
+      "target": "X2",
+      "confidence": 0.0
+    },
+    {
+      "source": "X4",
+      "target": "X3",
+      "confidence": 0.0
+    },
+    {
+      "source": "X4",
+      "target": "X5",
+      "confidence": 0.9
+    },
+    {
+      "source": "X5",
+      "target": "X0",
+      "confidence": 0.0
+    },
+    {
+      "source": "X5",
+      "target": "X1",
+      "confidence": 0.0
+    },
+    {
+      "source": "X5",
+      "target": "X2",
+      "confidence": 0.0
+    },
+    {
+      "source": "X5",
+      "target": "X3",
+      "confidence": 0.0
+    },
+    {
+      "source": "X5",
+      "target": "X4",
+      "confidence": 0.0
+    }
+  ],
+  "without_prior": {
+    "shd": 2.0,
+    "f1": 0.6,
+    "precision": 0.75,
+    "recall": 0.5,
+    "ece": 0.09321661873062566,
+    "n_edges": 4
+  },
+  "with_prior_by_lambda": {
+    "lambda_0.01": {
+      "shd": 2.5,
+      "f1": 0.5454545454545454,
+      "precision": 0.6,
+      "recall": 0.5,
+      "ece": 0.07091469255344617,
+      "n_edges": 5
+    },
+    "lambda_0.05": {
+      "shd": 2.0,
+      "f1": 0.5,
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "ece": 0.1114709514659419,
+      "n_edges": 2
+    },
+    "lambda_0.1": {
+      "shd": 2.0,
+      "f1": 0.5,
+      "precision": 1.0,
+      "recall": 0.3333333333333333,
+      "ece": 0.09420927660085339,
+      "n_edges": 2
+    },
+    "lambda_0.2": {
+      "shd": 3.0,
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "ece": 0.03729025119690679,
+      "n_edges": 0
+    }
+  },
+  "with_prior_best": {
+    "shd": 2.0,
+    "f1": 0.6,
+    "precision": 0.75,
+    "recall": 0.5,
+    "ece": 0.09321661873062566,
+    "n_edges": 4
+  },
+  "comparison": {
+    "shd": {
+      "without": 2.0,
+      "with": 2.0,
+      "diff": 0.0,
+      "improved": false
+    },
+    "f1": {
+      "without": 0.6,
+      "with": 0.6,
+      "diff": 0.0,
+      "improved": false
+    },
+    "precision": {
+      "without": 0.75,
+      "with": 0.75,
+      "diff": 0.0,
+      "improved": false
+    },
+    "recall": {
+      "without": 0.5,
+      "with": 0.5,
+      "diff": 0.0,
+      "improved": false
+    },
+    "ece": {
+      "without": 0.09321661873062566,
+      "with": 0.09321661873062566,
+      "diff": 0.0,
+      "improved": false
+    }
+  }
+}

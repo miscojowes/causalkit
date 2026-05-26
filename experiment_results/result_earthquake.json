@@ -1,0 +1,38 @@
+{
+  "vars": 5,
+  "edges": 4,
+  "samples": 2000,
+  "GES": {
+    "SHD": 8,
+    "F1": 0.0,
+    "Precision": 0.0,
+    "Recall": 0.0,
+    "Edges": 4,
+    "TP": 0,
+    "FP": 4,
+    "FN": 4,
+    "th": 0.01
+  },
+  "CB": {
+    "SHD": 4,
+    "F1": 0.5,
+    "Precision": 0.5,
+    "Recall": 0.5,
+    "Edges": 4,
+    "TP": 2,
+    "FP": 2,
+    "FN": 2,
+    "th": 0.197
+  },
+  "CB+P": {
+    "SHD": 3,
+    "F1": 0.7273,
+    "Precision": 0.5714,
+    "Recall": 1.0,
+    "Edges": 7,
+    "TP": 4,
+    "FP": 3,
+    "FN": 0,
+    "th": 0.041
+  }
+}

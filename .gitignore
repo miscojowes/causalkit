@@ -10,3 +10,5 @@ results/
 plots/
 *.pt
 *.csv
+!experiment_results/*.csv
+.venv/

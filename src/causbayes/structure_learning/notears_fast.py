@@ -53,28 +53,186 @@ def notears_lbfgs(
 
     if prior_matrix is not None:
         prior_matrix = np.asarray(prior_matrix, dtype=float)
-        # Symmetrize: prior[i,j] = mean of (i,j) and (j,i) since NOTEARS
-        # uses undirected prior strength
-        prior_matrix = (prior_matrix + prior_matrix.T) / 2.0
+        # NOTE: Do NOT symmetrize — prior[i,j] and prior[j,i] have distinct
+        # meanings (i->j vs j->i). Symmetrizing would destroy directional
+        # information that LLM priors provide for edge orientation.
+        # Each direction gets its own L2 penalty independently.
 
     def _loss(W):
         M = X @ W
         R = X - M
         loss = 0.5 / n * (R ** 2).sum()
         G_loss = -1.0 / n * X.T @ R
-        # L2 prior penalty: penalize weights deviating from prior expectations
-        if prior_matrix is not None and lambda_prior > 0:
-            # For prior=0 (edge unlikely): penalize |W|^2
-            # For prior close to 1 (edge likely): penalize (|W| - mu)^2 where mu > 0
-            prior_penalty = lambda_prior * np.sum(prior_matrix * W**2)
+        # L2 prior penalty: penalize DISAGREEMENT with prior
+        # prior[i,j] = 1 means edge i->j is expected -> little penalty for large |W|
+        # prior[i,j] = 0 means edge i->j is unexpected -> heavy penalty for |W| > 0
+        # Penalty = lambda_prior * sum((1 - prior) * W^2)
+        # This pushes W[i,j] toward 0 where prior says no edge,
+        # and allows larger |W| where prior says edge present.
+        if prior_matrix is not None and np.any(np.asarray(lambda_prior) > 0):
+            lam = np.asarray(lambda_prior, dtype=float)
+            if lam.ndim == 0:
+                prior_penalty = float(lam) * np.sum((1.0 - prior_matrix) * W**2)
+                G_loss += 2 * float(lam) * (1.0 - prior_matrix) * W
+            else:
+                prior_penalty = np.sum(lam * (1.0 - prior_matrix) * W**2)
+                G_loss += 2 * lam * (1.0 - prior_matrix) * W
             loss += prior_penalty
-            G_loss += 2 * lambda_prior * prior_matrix * W
         return loss, G_loss
 
     def _h(W):
         E = slin.expm(W * W)
         h = np.trace(E) - d
         G_h = E.T * W * 2
+        return h, G_h
+
+    def _adj(w):
+        return (w[: d * d] - w[d * d :]).reshape([d, d])
+
+    def _func(w):
+        W = _adj(w)
+        loss, G_loss = _loss(W)
+        h, G_h = _h(W)
+        obj = loss + 0.5 * rho * h * h + alpha * h + lambda_1 * w.sum()
+        G_smooth = G_loss + (rho * h + alpha) * G_h
+        g_obj = np.concatenate((G_smooth + lambda_1, -G_smooth + lambda_1), axis=None)
+        return obj, g_obj
+
+    w_est = np.zeros(2 * d * d)
+    rho = 1.0
+    alpha = 0.0
+    h = np.inf
+
+    bnds = [(0, 0) if i == j else (0, None)
+            for _ in range(2) for i in range(d) for j in range(d)]
+
+    best_h = np.inf
+    best_W = None
+
+    for _ in range(max_iter):
+        w_new, h_new = None, None
+        while rho < rho_max:
+            sol = sopt.minimize(
+                _func, w_est, method="L-BFGS-B", jac=True, bounds=bnds,
+                options={"maxiter": lbfgs_maxiter},
+            )
+            w_new = sol.x
+            h_new, _ = _h(_adj(w_new))
+            if h_new > 0.25 * h and h < np.inf:
+                rho *= 10
+            else:
+                break
+        w_est = w_new
+        h = h_new
+
+        # Track best DAG
+        if h < best_h:
+            best_h = h
+            best_W = _adj(w_est).copy()
+
+        alpha += rho * h
+        if h <= h_tol or rho >= rho_max:
+            break
+
+    W_est = best_W if best_W is not None else _adj(w_est)
+    W_est[np.abs(W_est) < w_threshold] = 0.0
+    return W_est
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Strategy 1b: L-BFGS-B + DAGMA log-det acyclicity (NEVER overflows)
+#  Uses -log(det(sI - W⊙W)) + d*log(s) instead of trace(exp(W²)) - d
+# ═══════════════════════════════════════════════════════════════════════
+
+def notears_lbfgs_dagma(
+    X: np.ndarray,
+    lambda_1: float = 0.01,
+    max_iter: int = 10,
+    h_tol: float = 1e-8,
+    rho_max: float = 1e16,
+    w_threshold: float = 0.1,
+    lbfgs_maxiter: int = 20,
+    prior_matrix: np.ndarray = None,
+    lambda_prior: float = 0.0,
+) -> np.ndarray:
+    """NOTEARS with DAGMA log-det acyclicity penalty (never overflows).
+
+    Replaces the expm-based h(W) = trace(exp(W²)) - d with the DAGMA
+    log-det formulation from Bello et al. (2022):
+        h(W) = -log(det(sI - W⊙W)) + d*log(s)
+
+    This penalty is numerically stable for any W — no overflow possible
+    because it grows only logarithmically with the spectral radius.
+
+    Args:
+        X: Data (n, d), centered
+        lambda_1: L1 penalty
+        max_iter: Max augmented Lagrangian iterations
+        h_tol: DAG tolerance
+        rho_max: Max penalty parameter
+        w_threshold: Prune edges with |w| < threshold
+        lbfgs_maxiter: Max L-BFGS iterations per call
+        prior_matrix: Prior knowledge matrix [0,1] where 1 = likely edge
+        lambda_prior: L2 penalty strength for prior deviation
+
+    Returns:
+        W: (d, d) weight matrix
+    """
+    n, d = X.shape
+    X = X - X.mean(axis=0, keepdims=True)
+
+    if prior_matrix is not None:
+        prior_matrix = np.asarray(prior_matrix, dtype=float)
+
+    def _loss(W):
+        M = X @ W
+        R = X - M
+        loss = 0.5 / n * (R ** 2).sum()
+        G_loss = -1.0 / n * X.T @ R
+        # Prior penalty
+        if prior_matrix is not None and np.any(np.asarray(lambda_prior) > 0):
+            lam = np.asarray(lambda_prior, dtype=float)
+            if lam.ndim == 0:
+                prior_penalty = float(lam) * np.sum((1.0 - prior_matrix) * W**2)
+                G_loss += 2 * float(lam) * (1.0 - prior_matrix) * W
+            else:
+                prior_penalty = np.sum(lam * (1.0 - prior_matrix) * W**2)
+                G_loss += 2 * lam * (1.0 - prior_matrix) * W
+            loss += prior_penalty
+        return loss, G_loss
+
+    def _h(W):
+        # DAGMA log-det acyclicity penalty
+        # h(W) = -log(det(sI - W⊙W)) + d*log(s)
+        # Gradient: 2 * W ⊙ (sI - W⊙W)^{-T}
+        W2 = W * W  # element-wise square (W⊙W)
+
+        # Compute spectral radius of W2 to choose s > ρ(W2)
+        # Use eigenvalues for accuracy (W2 is not necessarily symmetric)
+        ev = np.linalg.eigvals(W2)
+        rho = np.max(np.abs(ev))
+        s = max(1.1 * rho, 1.0)
+
+        # M = sI - W⊙W  (positive definite since s > spectral radius)
+        M = s * np.eye(d) - W2
+
+        # log-det via slogdet (handles sign of det)
+        sign, logdet = np.linalg.slogdet(M)
+        if sign <= 0:
+            # Fallback: if det is negative or zero, increase s
+            s = max(2.0 * rho, 1.0)
+            M = s * np.eye(d) - W2
+            sign, logdet = np.linalg.slogdet(M)
+
+        h = -logdet + d * np.log(s)
+        # DAGMA guarantees h >= 0; clamp tiny numerical negatives
+        if h < 0:
+            h = 0.0
+
+        # Gradient: G_h[i,j] = 2 * W[i,j] * (M^{-1})[i,j]
+        invM = np.linalg.inv(M)
+        G_h = 2.0 * W * invM
+
         return h, G_h
 
     def _adj(w):
@@ -166,7 +324,7 @@ def notears_adam(
 
     if prior_matrix is not None:
         prior_t = torch.from_numpy(np.asarray(prior_matrix, dtype=float)).float()
-        prior_t = (prior_t + prior_t.T) / 2.0
+        # NOTE: Do NOT symmetrize — prior[i,j] and prior[j,i] are distinct
     else:
         prior_t = None
 
@@ -187,9 +345,10 @@ def notears_adam(
             recon = 0.5 / n * torch.sum((X_t - X_pred) ** 2)
             l1 = lambda_1 * torch.sum(torch.abs(W))
 
-            # L2 prior penalty
+            # L2 prior penalty: penalize DISAGREEMENT with prior
+            # (1 - prior) * W^2 means edges where prior=0 get strongly penalized
             if prior_t is not None and lambda_prior > 0:
-                l2_prior = lambda_prior * torch.sum(prior_t * W**2)
+                l2_prior = lambda_prior * torch.sum((1.0 - prior_t) * W**2)
             else:
                 l2_prior = 0.0
 
@@ -253,7 +412,7 @@ def bootstrap_notears(
         lambda_1: L1 penalty
         max_iter: Max iterations per run
         w_threshold: Edge pruning threshold per run
-        method: 'lbfgs' or 'adam'
+        method: 'lbfgs', 'adam', or 'dagma'
         seed: Random seed
         prior_matrix: Prior knowledge matrix [0,1]
         lambda_prior: L2 penalty strength for prior deviation
@@ -263,7 +422,11 @@ def bootstrap_notears(
     """
     from sklearn.utils import resample
 
-    notears_fn = notears_lbfgs if method == "lbfgs" else notears_adam
+    notears_fn = {
+        'lbfgs': notears_lbfgs,
+        'adam': notears_adam,
+        'dagma': notears_lbfgs_dagma,
+    }.get(method, notears_lbfgs_dagma)
 
     d = X.shape[1]
     W_list = []
@@ -434,3 +597,7 @@ def brier_score(
             total += (P_est[i, j] - W_true[i, j]) ** 2
             count += 1
     return total / count
+
+
+# DAGMA-based NOTEARS is now the default (more stable)
+notears = notears_lbfgs_dagma

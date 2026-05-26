@@ -59,7 +59,7 @@ class BootstrapDAG(BaseStructureLearner):
         lambda_1: float = 0.01,
         threshold: float = None,
         max_iter: int = 10,
-        w_threshold: float = 0.1,
+        w_threshold: float = 0.01,
         prior_matrix: np.ndarray = None,
         lambda_prior: float = 0.0,
         calibrate: bool = True,
@@ -132,12 +132,17 @@ class BootstrapDAG(BaseStructureLearner):
             self._edge_stds_ = np.zeros((d, d))
             return self
 
-        # Compute coarse edge probabilities from bootstrap distribution
+        # Mean absolute weight aggregation (more informative than binary presence)
         W_stack = np.array(self._weight_matrices_)
         W_abs = np.abs(W_stack)
-
-        # Edge = present when |W| > small threshold (captures any non-zero)
-        mask = W_abs > 1e-4
+        
+        # Edge strength = mean absolute weight across bootstraps
+        self._edge_strength_ = np.mean(W_abs, axis=0)
+        np.fill_diagonal(self._edge_strength_, 0.0)
+        
+        # Edge probability = fraction of bootstraps where edge is non-zero
+        # Use a very low threshold to capture weak but consistent edges
+        mask = W_abs > 1e-6
         self._edge_probs_raw_ = np.mean(mask, axis=0)
         self._edge_stds_ = np.std(W_abs, axis=0)
         np.fill_diagonal(self._edge_probs_raw_, 0.0)
@@ -189,7 +194,10 @@ class BootstrapDAG(BaseStructureLearner):
 
     @property
     def adjacency_matrix(self) -> np.ndarray:
-        t = self.threshold if self.threshold is not None else 0.5
+        t = self.threshold if self.threshold is not None else 0.05
+        # Use mean edge strength for thresholding (more stable than binary probs)
+        if hasattr(self, '_edge_strength_'):
+            return (self._edge_strength_ >= t).astype(float)
         return (self._edge_probs_ >= t).astype(float)
 
     @property

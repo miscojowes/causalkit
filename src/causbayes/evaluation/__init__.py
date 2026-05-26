@@ -176,6 +176,9 @@ def comprehensive_evaluation(
     fn = np.sum((W_bin == 0) & (W_true > 0))
     results["precision@0.5"] = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     results["recall@0.5"] = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    p = results["precision@0.5"]
+    r = results["recall@0.5"]
+    results["f1"] = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
 
     # Edge entropy (average)
     H = edge_entropy(P_est)
