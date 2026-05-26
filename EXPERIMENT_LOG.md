@@ -375,10 +375,6 @@ Expected: Uniform λ ≈ F1=0.64, Adaptive ≈ F1=0.57 on Sachs with 100 bootstr
 - **Problem:** Requires Python < 3.11. Current env is 3.12.
 - **Alternative:** causalkit is simpler and more flexible.
 
-### Docker Firecrawl
-- **Problem:** ARM64 build too slow on Radxa.
-- **Alternative:** Firecrawl Mini (Python, systemd service).
-
 ### DAGMA (PyTorch)
 - **Status:** Implemented in `notears_fast.py` but untested.
 - **Note:** May be faster than NOTEARS for d > 50.
